@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <script src="https://api.briqpay.com/briq.min.js" src_type="url" async="true"/>
+    </head>
+    <body>
+        <referenceContainer name="hyva.checkout.api-v1.payment-methods">
+            <block name="briqpay-payments-after"
+                   template="Briqpay_PaymentsHyvaCheckout::checkout/payment/briqpay-after.phtml"
+            >
+                <arguments>
+                    <argument name="magewire" xsi:type="object">
+                        Briqpay\PaymentsHyvaCheckout\Magewire\Payment\Method\BriqpayAfter
+                    </argument>
+                </arguments>
+
+                <block name="loading" template="Hyva_Theme::ui/loading.phtml"/>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

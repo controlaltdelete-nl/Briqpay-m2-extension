@@ -1,0 +1,186 @@
+<?php
+
+use Briqpay\PaymentsHyvaCheckout\Magewire\Payment\Method\BriqpayAfter;
+use Magento\Framework\View\Element\Template;
+
+/** @var BriqpayAfter $magewire */
+/** @var Template $block */
+?>
+<div>
+    <div class="briqpay-loader"
+         x-data="briqpayLoadingIndicator"
+         @briqpay-show-loading-indicator.window="showLoadingIndicator"
+         @briqpay-hide-loading-indicator.window="hideLoadingIndicator"
+    >
+        <?= $block->getChildHtml('loading') ?>
+    </div>
+    <script>
+        function briqpayLoadingIndicator() {
+            return {
+                isLoading: false,
+
+                showLoadingIndicator() {
+                    this.isLoading = true
+                },
+
+                hideLoadingIndicator() {
+                    this.isLoading = false
+                }
+            }
+        }
+
+        window.addEventListener(
+            'alpine:init',
+            () => Alpine.data('briqpayLoadingIndicator', briqpayLoadingIndicator),
+            {once: true}
+        )
+    </script>
+    <?php isset($hyvaCsp) && $hyvaCsp->registerInlineScript() ?>
+    <script>
+        (() => {
+            hyvaCheckout.api.after(() => {
+                const emailSelector = document.querySelector('[name="email_address"]')
+                if (emailSelector && emailSelector.value) {
+                    window._briqpay.v3.lockModule("payment", true)
+
+                    Magewire.find('briqpay-payments-after')
+                        .updateEmail(emailSelector.value)
+                        .then(() => window._briqpay.v3.unlockModule("payment"))
+                }
+
+                if (emailSelector) {
+                    emailSelector.addEventListener('change', (event) => {
+                        Magewire.find('briqpay-payments-after').updateEmail(emailSelector.value)
+                    });
+                }
+
+                hyvaCheckout.payment.registerMethod({
+                    code: 'briqpay',
+
+                    method: {
+                        showPaymentOverlay: <?= $magewire->showPaymentOverlay() ? 'true' : 'false' ?>,
+                        enableCustomDecisionLogic: <?= $magewire->useCustomDecisionLogic() ? 'true' : 'false' ?>,
+
+                        initialize: async function () {
+                            const placeOrderBtn = document.querySelector('.btn-place-order');
+                            if (placeOrderBtn) placeOrderBtn.style.display = 'none';
+
+                            window._briqpay.v3.onReady(() => {
+                                try {
+                                    window._briqpay.v3.unlockModule('payment')
+
+                                    this.handleOverlay();
+
+                                    window._briqpay.subscribe("make_decision", async (data) => {
+                                        const valid = await hyvaCheckout.validation.validate();
+                                        if (!valid) {
+                                            window._briqpay.v3.resumeDecision();
+                                            return;
+                                        }
+
+                                        this.handleCustomDecisionLogic(data);
+
+                                        let guestEmail = null;
+                                        const emailSelector = document.querySelector('[name="email_address"]')
+                                        if (emailSelector) {
+                                            guestEmail = emailSelector.value;
+                                        }
+
+                                        this.wire().makeDecision(data.sessionId, guestEmail).then(() => {
+                                            console.error('Briqpay: make decision result:', this.wire().decisionSuccess);
+
+                                            window._briqpay.v3.resumeDecision();
+                                        });
+                                    });
+                                } catch (error) {
+                                    console.error("Error executing Briqpay function:", error)
+                                }
+                            })
+                        },
+
+                        handleOverlay: function () {
+                            if (!this.showPaymentOverlay) {
+                                return;
+                            }
+
+                            window._briqpay.subscribe("paymentProcessStarted", function () {
+                                window.dispatchEvent(new CustomEvent('briqpay-show-loading-indicator'));
+                            });
+
+                            window._briqpay.subscribe("paymentProcessCancelled", function () {
+                                window.dispatchEvent(new CustomEvent('briqpay-hide-loading-indicator'));
+                            });
+                        },
+
+                        handleCustomDecisionLogic: async function (data) {
+                            if (!this.enableCustomDecisionLogic) {
+                                return;
+                            }
+
+                            const promiseForResponse = new Promise((resolve) => {
+                                document.addEventListener(
+                                    "briqpayDecisionResponse",
+                                    function (e) {
+                                        resolve(e.detail) // Resolve with the event detail
+                                    },
+                                    {once: true}
+                                )
+                            })
+
+                            document.dispatchEvent(new CustomEvent("briqpayDecision", {
+                                detail: {data: data},
+                            }))
+
+                            const customDecisionResponse = await Promise.race([
+                                promiseForResponse,
+                                new Promise((resolve) =>
+                                    setTimeout(() => {
+                                        resolve({decision: true})
+                                    }, 10000)
+                                ),
+                            ])
+
+                            return customDecisionResponse.decision;
+                        },
+
+                        uninitialize: async function () {
+                            const placeOrderBtn = document.querySelector('.btn-place-order');
+                            if (placeOrderBtn) placeOrderBtn.style.display = '';
+                        },
+
+                        canPlaceOrder: function () {
+                            return false;
+                        },
+
+                        wire: function () {
+                            return Magewire.find('briqpay-payments-after')
+                        },
+                    }
+                });
+            });
+        })();
+    </script>
+    <?php isset($hyvaCsp) && $hyvaCsp->registerInlineScript() ?>
+
+    <script>
+        function briqpayMethodRenderer() {
+            return {
+                updateIframe(event) {
+                    const element = document.querySelector('.briqpay-iframe');
+                    if (!element) {
+                        return;
+                    }
+
+                    element.innerHTML = event.detail;
+                }
+            }
+        }
+
+        window.addEventListener(
+            'alpine:init',
+            () => Alpine.data('briqpayMethodRenderer', briqpayMethodRenderer),
+            {once: true}
+        )
+    </script>
+    <?php isset($hyvaCsp) && $hyvaCsp->registerInlineScript() ?>
+</div>

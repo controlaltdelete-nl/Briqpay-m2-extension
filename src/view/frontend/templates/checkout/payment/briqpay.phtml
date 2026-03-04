@@ -1,0 +1,22 @@
+<?php
+/** @var Briqpay $magewire */
+
+use Briqpay\PaymentsHyvaCheckout\Magewire\Payment\Method\Briqpay;
+
+if (!$magewire->isQuoteValid()) {
+    ?>
+    <div>
+        <?= __('Please enter your shipping and billing address and select a shipping method before continuing.'); ?>
+    </div>
+    <?php
+    return;
+}
+?>
+<div x-data="briqpayMethodRenderer"
+     @briqpay-update-iframe-html.window="updateIframe"
+>
+    <div wire:ignore class="briqpay-iframe">
+        <?= /** @noEscape */
+        $magewire->getIframe(); ?>
+    </div>
+</div>
