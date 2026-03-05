@@ -129,6 +129,8 @@ jobs:
         run: |
           docker compose -f .github/workflows/templates/docker-compose.yaml logs magento > magento.log
           docker compose -f .github/workflows/templates/docker-compose.yaml logs tunnel > tunnel.log
+          docker exec magento-project-community-edition ./retry "php bin/magento app:config:dump system scopes"
+          docker cp magento-project-community-edition:/data/app/etc/config.php config.php
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -141,3 +143,4 @@ jobs:
             magento-logs
             magento.log
             tunnel.log
+            config.php
